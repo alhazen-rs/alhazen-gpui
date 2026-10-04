@@ -16,6 +16,7 @@ fn opens_fixture_in_background(cx: &mut TestAppContext) {
     video.read_with(cx, |v, _| {
         assert_eq!(v.state(), PlayerState::Paused);
         assert_eq!(v.video_size(), Some((320, 240)));
+        assert!(v.is_seekable());
         assert_eq!(v.duration(), Some(std::time::Duration::from_secs(2)));
     });
 }

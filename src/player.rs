@@ -121,6 +121,11 @@ impl VideoPlayer {
         self.player.as_ref().map(|p| p.position()).unwrap_or_default()
     }
 
+    /// `false` while loading, or for streams that cannot seek; hide seek controls then.
+    pub fn is_seekable(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.is_seekable())
+    }
+
     pub fn duration(&self) -> Option<Duration> {
         self.player.as_ref().and_then(|p| p.duration())
     }

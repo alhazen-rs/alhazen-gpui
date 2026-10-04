@@ -1,0 +1,21 @@
+[package]
+name = "gpui-video"
+description = "Video player element for GPUI, built on video-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["native", "http"]
+native = ["video-core/native"]
+http = ["video-core/http"]
+
+[dependencies]
+video-core.workspace = true
+gpui = "0.2.2"
+# Must match the `image` major version gpui uses (RenderImage is built from image::Frame).
+image = { version = "0.25.1", default-features = false }
+
+[dev-dependencies]
+gpui = { version = "0.2.2", features = ["test-support"] }

@@ -305,7 +305,9 @@ impl VideoPlayer {
         let Some(player) = self.player.as_ref() else { return };
         let stats = player.stats();
         let position = player.position();
-        let offset_ms = frame_pts.map(|p| position.as_secs_f64() * 1e3 - p.as_secs_f64() * 1e3);
+        // Only meaningful while playing: around a seek the old frame is compared with the new position.
+        let playing = player.state() == PlayerState::Playing;
+        let offset_ms = frame_pts.filter(|_| playing).map(|p| position.as_secs_f64() * 1e3 - p.as_secs_f64() * 1e3);
         eprintln!(
             "[video-core] pos {:7.2}s | shown {:3} fps | paint avg {:5.1} ms, worst {:5.1} ms | frame behind clock {} | dropped {:3}/s | state {:?} | video {}",
             position.as_secs_f64(),

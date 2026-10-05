@@ -7,9 +7,13 @@ license.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["native", "http"]
+default = ["native", "http", "audio-output"]
 native = ["video-core/native"]
 http = ["video-core/http"]
+# Sound through the system's default device (Linux builds need libasound2-dev).
+audio-output = ["video-core/audio-output"]
+# AAC-LC via Symphonia (MPL-2.0); see video-core's `native-aac`.
+native-aac = ["video-core/native-aac"]
 
 [dependencies]
 video-core.workspace = true

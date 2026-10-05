@@ -7,10 +7,12 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, relative, rgb, size,
 };
-use gpui_video::{PlayerConfig, PlayerState, Source, VideoPlayer, video_view};
+use gpui_video::{PlayerConfig, PlayerEvent, PlayerState, Source, VideoPlayer, video_view};
 
 struct PlayerWindow {
     video: Entity<VideoPlayer>,
+    /// Latest warning from the player (e.g. no audio output), shown in the status bar.
+    warning: Option<String>,
 }
 
 impl PlayerWindow {
@@ -18,7 +20,19 @@ impl PlayerWindow {
         let config = PlayerConfig { autoplay: true, ..Default::default() };
         let video = cx.new(|cx| VideoPlayer::new(source, config, cx));
         cx.observe(&video, |_, _, cx| cx.notify()).detach();
-        Self { video }
+        cx.subscribe(&video, |this, _, event: &PlayerEvent, cx| {
+            if let PlayerEvent::Warning(w) = event {
+                eprintln!("warning: {w}");
+                this.warning = Some(w.clone());
+                cx.notify();
+            }
+        })
+        .detach();
+        Self { video, warning: None }
+    }
+
+    fn change_volume(&mut self, delta: f32, cx: &mut Context<Self>) {
+        self.video.update(cx, |v, cx| v.set_volume(v.volume() + delta, cx));
     }
 
     fn skip(&mut self, delta: i64, cx: &mut Context<Self>) {
@@ -54,11 +68,15 @@ impl Render for PlayerWindow {
             .filter(|d| !d.is_zero())
             .map(|d| (position.as_secs_f32() / d.as_secs_f32()).clamp(0.0, 1.0))
             .unwrap_or(0.0);
-        let status = match &state {
-            PlayerState::Error(e) => format!("Error: {e}"),
-            other => format!("{other:?}"),
+        let status = match (&state, &self.warning) {
+            (PlayerState::Error(e), _) => format!("Error: {e}"),
+            (other, Some(w)) => format!("{other:?} — {w}"),
+            (other, None) => format!("{other:?}"),
         };
         let play_label = if v.is_playing() { "Pause" } else { "Play" };
+        let mute_label = if v.is_muted() { "Unmute" } else { "Mute" };
+        let volume = format!("Vol {:.0}%", v.volume() * 100.0);
+        let audio_only = !v.has_video() && v.has_audio();
 
         div()
             .size_full()
@@ -66,7 +84,11 @@ impl Render for PlayerWindow {
             .flex_col()
             .bg(rgb(0x101010))
             .text_color(rgb(0xffffff))
-            .child(video_view(self.video.clone()).flex_1().w_full())
+            .child(if audio_only {
+                div().flex_1().w_full().flex().items_center().justify_center().child("♪ audio only").into_any_element()
+            } else {
+                video_view(self.video.clone()).flex_1().w_full().into_any_element()
+            })
             .child(div().h(px(4.)).w_full().bg(rgb(0x303030)).child(
                 div().h_full().w(relative(progress)).bg(rgb(0xe04040)),
             ))
@@ -81,6 +103,12 @@ impl Render for PlayerWindow {
                         this.video.update(cx, |v, cx| v.toggle(cx))
                     })))
                     .child(button("fwd", "+5s").on_click(cx.listener(|this, _, _, cx| this.skip(5, cx))))
+                    .child(button("mute", mute_label).on_click(cx.listener(|this, _, _, cx| {
+                        this.video.update(cx, |v, cx| v.set_muted(!v.is_muted(), cx))
+                    })))
+                    .child(button("vol-down", "Vol -").on_click(cx.listener(|this, _, _, cx| this.change_volume(-0.1, cx))))
+                    .child(button("vol-up", "Vol +").on_click(cx.listener(|this, _, _, cx| this.change_volume(0.1, cx))))
+                    .child(volume)
                     .child(format!(
                         "{} / {}",
                         fmt(position),

@@ -14,6 +14,9 @@ pub struct VideoPlayer {
     state: PlayerState,
     /// The image currently in GPUI's sprite atlas, and the frame data it was built from.
     image: Option<(Arc<RenderImage>, Arc<[u8]>)>,
+    /// Volume settings, kept here so they apply even before the player has opened.
+    volume: f32,
+    muted: bool,
     _tasks: Vec<Task<()>>,
 }
 
@@ -39,6 +42,8 @@ impl VideoPlayer {
                     let events = match result {
                         Ok(player) => {
                             let events = player.events();
+                            player.set_volume(this.volume);
+                            player.set_muted(this.muted);
                             this.state = player.state();
                             this.player = Some(Arc::new(player));
                             Some(events)
@@ -78,7 +83,7 @@ impl VideoPlayer {
                 }
             }
         });
-        Self { player: None, state: PlayerState::Loading, image: None, _tasks: vec![open] }
+        Self { player: None, state: PlayerState::Loading, image: None, volume: 1.0, muted: false, _tasks: vec![open] }
     }
 
     pub fn play(&mut self, cx: &mut Context<Self>) {
@@ -107,6 +112,41 @@ impl VideoPlayer {
             self.state = p.state();
             cx.notify();
         }
+    }
+
+    /// 0.0..=1.0 (clamped). Applied instantly.
+    pub fn set_volume(&mut self, volume: f32, cx: &mut Context<Self>) {
+        self.volume = if volume.is_nan() { 0.0 } else { volume.clamp(0.0, 1.0) };
+        if let Some(p) = &self.player {
+            p.set_volume(self.volume);
+        }
+        cx.notify();
+    }
+
+    pub fn volume(&self) -> f32 {
+        self.volume
+    }
+
+    pub fn set_muted(&mut self, muted: bool, cx: &mut Context<Self>) {
+        self.muted = muted;
+        if let Some(p) = &self.player {
+            p.set_muted(muted);
+        }
+        cx.notify();
+    }
+
+    pub fn is_muted(&self) -> bool {
+        self.muted
+    }
+
+    /// `false` while loading.
+    pub fn has_video(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.has_video())
+    }
+
+    /// Whether sound is playing (`false` while loading, without audio, or without an output).
+    pub fn has_audio(&self) -> bool {
+        self.player.as_ref().is_some_and(|p| p.has_audio())
     }
 
     pub fn state(&self) -> PlayerState {

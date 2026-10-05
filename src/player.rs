@@ -1,8 +1,58 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{App, Context, EventEmitter, RenderImage, Task};
 use video_core::{Player, PlayerConfig, PlayerEvent, PlayerState, Source, VideoFrame};
+
+/// Paints a replaced frame image stays in the sprite atlas before it is dropped. GPUI's Blade
+/// atlas destroys an image's GPU texture as soon as it is removed, while frames already submitted
+/// may still be sampling it ("GPU has crashed" at 4K60). A few frames of slack lets them finish.
+const RETIRE_AFTER: usize = 3;
+
+/// Images that left the screen, oldest first; each is dropped once `RETIRE_AFTER` newer ones
+/// have replaced it.
+pub(crate) struct Retired<T>(VecDeque<T>);
+
+impl<T> Default for Retired<T> {
+    fn default() -> Self {
+        Self(VecDeque::new())
+    }
+}
+
+impl<T> Retired<T> {
+    /// Retires `old`; returns the images now safe to drop.
+    pub fn push(&mut self, old: T) -> Vec<T> {
+        self.0.push_back(old);
+        let excess = self.0.len().saturating_sub(RETIRE_AFTER);
+        self.0.drain(..excess).collect()
+    }
+
+    pub fn drain_all(&mut self) -> Vec<T> {
+        self.0.drain(..).collect()
+    }
+}
+
+/// Per-second playback diagnostics, printed to stderr when `VIDEO_CORE_DEBUG` is set.
+pub(crate) struct DebugStats {
+    since: std::time::Instant,
+    new_frames: u32,
+    paint_cost: Duration,
+    worst_paint: Duration,
+    dropped_at_start: u64,
+}
+
+impl DebugStats {
+    fn from_env() -> Option<Self> {
+        std::env::var_os("VIDEO_CORE_DEBUG").map(|_| Self {
+            since: std::time::Instant::now(),
+            new_frames: 0,
+            paint_cost: Duration::ZERO,
+            worst_paint: Duration::ZERO,
+            dropped_at_start: 0,
+        })
+    }
+}
 
 /// How often player events are forwarded to GPUI.
 const EVENT_POLL: Duration = Duration::from_millis(16);
@@ -14,6 +64,11 @@ pub struct VideoPlayer {
     state: PlayerState,
     /// The image currently in GPUI's sprite atlas, and the frame data it was built from.
     image: Option<(Arc<RenderImage>, Arc<[u8]>)>,
+    /// Pts of the frame in `image`.
+    image_pts: Option<Duration>,
+    /// Replaced images still in the atlas until the GPU is surely done with them.
+    retired: Retired<Arc<RenderImage>>,
+    debug: Option<DebugStats>,
     /// Volume settings, kept here so they apply even before the player has opened.
     volume: f32,
     muted: bool,
@@ -27,6 +82,9 @@ impl VideoPlayer {
     pub fn new(source: Source, config: PlayerConfig, cx: &mut Context<Self>) -> Self {
         cx.on_release(|this: &mut Self, cx: &mut App| {
             if let Some((image, _)) = this.image.take() {
+                cx.drop_image(image, None);
+            }
+            for image in this.retired.drain_all() {
                 cx.drop_image(image, None);
             }
         })
@@ -83,7 +141,17 @@ impl VideoPlayer {
                 }
             }
         });
-        Self { player: None, state: PlayerState::Loading, image: None, volume: 1.0, muted: false, _tasks: vec![open] }
+        Self {
+            player: None,
+            state: PlayerState::Loading,
+            image: None,
+            image_pts: None,
+            retired: Retired::default(),
+            debug: DebugStats::from_env(),
+            volume: 1.0,
+            muted: false,
+            _tasks: vec![open],
+        }
     }
 
     pub fn play(&mut self, cx: &mut Context<Self>) {
@@ -180,24 +248,78 @@ impl VideoPlayer {
         self.player.as_ref().and_then(|p| p.video_size())
     }
 
-    /// The image to paint for the current frame. Returns the new image and, when the frame
-    /// changed, the previous image, which the caller must remove from the sprite atlas.
-    pub(crate) fn frame_image(&mut self) -> (Option<Arc<RenderImage>>, Option<Arc<RenderImage>>) {
+    /// The image to paint for the current frame, older images the caller must now remove from
+    /// the sprite atlas, and whether the frame is new.
+    pub(crate) fn frame_image(&mut self) -> (Option<Arc<RenderImage>>, Vec<Arc<RenderImage>>, bool) {
+        let current = || self.image.as_ref().map(|(i, _)| i.clone());
         let Some(frame) = self.player.as_ref().and_then(|p| p.current_frame()) else {
-            return (self.image.as_ref().map(|(i, _)| i.clone()), None);
+            return (current(), Vec::new(), false);
         };
-        let VideoFrame::Cpu { width, height, bgra, .. } = frame;
+        let VideoFrame::Cpu { width, height, bgra, pts } = frame;
         if let Some((image, data)) = &self.image
             && Arc::ptr_eq(data, &bgra)
         {
-            return (Some(image.clone()), None);
+            return (Some(image.clone()), Vec::new(), false);
         }
         let Some(buffer) = image::RgbaImage::from_raw(width, height, bgra.to_vec()) else {
-            return (self.image.as_ref().map(|(i, _)| i.clone()), None);
+            return (current(), Vec::new(), false);
         };
+        self.image_pts = Some(pts);
         // GPUI's RenderImage expects BGRA data even though the container type says RGBA.
         let image = Arc::new(RenderImage::new([image::Frame::new(buffer)]));
-        let previous = self.image.replace((image.clone(), bgra)).map(|(i, _)| i);
-        (Some(image), previous)
+        let drop = match self.image.replace((image.clone(), bgra)) {
+            Some((previous, _)) => self.retired.push(previous),
+            None => Vec::new(),
+        };
+        (Some(image), drop, true)
+    }
+}
+
+impl VideoPlayer {
+    /// Records the UI-thread cost of painting a new frame (`VIDEO_CORE_DEBUG` only) and prints a
+    /// summary once a second: frames shown, paint cost, A/V offset, drops and the video backend.
+    pub(crate) fn debug_paint(&mut self, new_frame: bool, cost: Duration) {
+        let frame_pts = self.image_pts;
+        let Some(d) = self.debug.as_mut() else { return };
+        if new_frame {
+            d.new_frames += 1;
+            d.paint_cost += cost;
+            d.worst_paint = d.worst_paint.max(cost);
+        }
+        if d.since.elapsed() < Duration::from_secs(1) {
+            return;
+        }
+        let Some(player) = self.player.as_ref() else { return };
+        let stats = player.stats();
+        let position = player.position();
+        let offset_ms = frame_pts.map(|p| position.as_secs_f64() * 1e3 - p.as_secs_f64() * 1e3);
+        eprintln!(
+            "[video-core] pos {:7.2}s | shown {:3} fps | paint avg {:5.1} ms, worst {:5.1} ms | frame behind clock {} | dropped {:3}/s | state {:?} | video {}",
+            position.as_secs_f64(),
+            d.new_frames,
+            d.paint_cost.as_secs_f64() * 1e3 / d.new_frames.max(1) as f64,
+            d.worst_paint.as_secs_f64() * 1e3,
+            offset_ms.map_or("-".into(), |o| format!("{o:6.1} ms")),
+            stats.frames_dropped - d.dropped_at_start,
+            player.state(),
+            stats.video_backend.unwrap_or("-"),
+        );
+        *d = DebugStats { since: std::time::Instant::now(), new_frames: 0, paint_cost: Duration::ZERO, worst_paint: Duration::ZERO, dropped_at_start: stats.frames_dropped };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retired_images_are_dropped_only_after_newer_ones_replaced_them() {
+        let mut r = Retired::default();
+        assert!(r.push(1).is_empty());
+        assert!(r.push(2).is_empty());
+        assert!(r.push(3).is_empty(), "the GPU may still sample the last {RETIRE_AFTER}");
+        assert_eq!(r.push(4), [1]);
+        assert_eq!(r.push(5), [2]);
+        assert_eq!(r.drain_all(), [3, 4, 5]);
     }
 }

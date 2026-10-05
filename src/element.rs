@@ -81,15 +81,18 @@ impl Element for VideoView {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let (image, previous) = self.player.update(cx, |p, _| p.frame_image());
-        if let Some(previous) = previous {
+        let start = std::time::Instant::now();
+        let (image, retired, new_frame) = self.player.update(cx, |p, _| p.frame_image());
+        for old in retired {
             // Without this the sprite atlas grows by one frame per frame.
-            let _ = window.drop_image(previous);
+            let _ = window.drop_image(old);
         }
         if let Some(image) = image {
             let fit = self.object_fit.get_bounds(bounds, image.size(0));
             let _ = window.paint_image(fit, Corners::default(), image, 0, false);
         }
+        let cost = start.elapsed();
+        self.player.update(cx, |p, _| p.debug_paint(new_frame, cost));
         if self.player.read(cx).is_playing() {
             window.request_animation_frame();
         }

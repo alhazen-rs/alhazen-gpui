@@ -69,6 +69,8 @@ pub struct VideoPlayer {
     /// Replaced images still in the atlas until the GPU is surely done with them.
     retired: Retired<Arc<RenderImage>>,
     debug: Option<DebugStats>,
+    /// Display size (device pixels) last passed to the player.
+    output_size: Option<(u32, u32)>,
     /// Volume settings, kept here so they apply even before the player has opened.
     volume: f32,
     muted: bool,
@@ -148,6 +150,7 @@ impl VideoPlayer {
             image_pts: None,
             retired: Retired::default(),
             debug: DebugStats::from_env(),
+            output_size: None,
             volume: 1.0,
             muted: false,
             _tasks: vec![open],
@@ -246,6 +249,16 @@ impl VideoPlayer {
 
     pub fn video_size(&self) -> Option<(u32, u32)> {
         self.player.as_ref().and_then(|p| p.video_size())
+    }
+
+    /// Tells the player how large the video is displayed (device pixels), so 4K frames shown
+    /// in a small window are scaled down before conversion and upload.
+    pub(crate) fn set_display_size(&mut self, size: (u32, u32)) {
+        let Some(player) = self.player.as_ref() else { return };
+        if self.output_size != Some(size) {
+            self.output_size = Some(size);
+            player.set_max_output_size(Some(size));
+        }
     }
 
     /// The image to paint for the current frame, older images the caller must now remove from

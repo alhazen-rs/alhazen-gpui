@@ -82,7 +82,14 @@ impl Element for VideoView {
         cx: &mut App,
     ) {
         let start = std::time::Instant::now();
-        let (image, retired, new_frame) = self.player.update(cx, |p, _| p.frame_image());
+        // Frames larger than the area they are shown in are scaled down on the decode thread.
+        let scale = window.scale_factor();
+        let device = |px: gpui::Pixels| (f32::from(px) * scale).round().max(1.0) as u32;
+        let display = (device(bounds.size.width), device(bounds.size.height));
+        let (image, retired, new_frame) = self.player.update(cx, |p, _| {
+            p.set_display_size(display);
+            p.frame_image()
+        });
         for old in retired {
             // Without this the sprite atlas grows by one frame per frame.
             let _ = window.drop_image(old);

@@ -139,6 +139,12 @@ impl VideoPlayer {
         self.muted
     }
 
+    /// The underlying `video_core::Player` once opened (`None` while loading or after an open
+    /// error), for anything this entity does not wrap.
+    pub fn player(&self) -> Option<&Arc<Player>> {
+        self.player.as_ref()
+    }
+
     /// `false` while loading.
     pub fn has_video(&self) -> bool {
         self.player.as_ref().is_some_and(|p| p.has_video())

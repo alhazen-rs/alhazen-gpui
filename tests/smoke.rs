@@ -35,6 +35,10 @@ fn volume_set_while_loading_applies_once_open(cx: &mut TestAppContext) {
         assert!(v.has_video() && v.has_audio());
         assert_eq!(v.volume(), 0.25);
         assert!(v.is_muted());
+        // The values must have reached the real player, not just the entity's copy.
+        let core = v.player().expect("opened");
+        assert_eq!(core.volume(), 0.25);
+        assert!(core.is_muted());
     });
 }
 

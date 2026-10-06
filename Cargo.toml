@@ -5,6 +5,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords = ["gpui", "video", "player", "media"]
+categories = ["multimedia::video", "gui"]
+include = ["src/**", "examples/**", "LICENSE", "NOTICE"]
 
 [features]
 default = ["native", "http", "audio-output", "ffmpeg-cli"]

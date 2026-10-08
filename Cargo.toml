@@ -1,34 +1,43 @@
 [package]
-name = "gpui-video"
-description = "Video player element for GPUI, built on video-core"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-readme = "../../README.md"
-keywords = ["gpui", "video", "player", "media"]
+name = "alhazen-gpui"
+description = "Video player for GPUI apps, built on the alhazen-core media engine"
+version = "0.2.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.92"
+repository = "https://github.com/alhazen-rs/alhazen-gpui"
+homepage = "https://github.com/alhazen-rs"
+documentation = "https://docs.rs/alhazen-gpui"
+readme = "README.md"
+keywords = ["gpui", "video", "player", "media", "audio"]
 categories = ["multimedia::video", "gui"]
-include = ["src/**", "examples/**", "LICENSE", "NOTICE"]
+include = ["src/**", "examples/**", "LICENSE", "NOTICE", "README.md"]
 
 [features]
 default = ["native", "http", "audio-output", "ffmpeg-cli", "media-foundation"]
-native = ["video-core/native"]
-http = ["video-core/http"]
+native = ["alhazen-core/native"]
+http = ["alhazen-core/http"]
 # Sound through the system's default device (Linux builds need libasound2-dev).
-audio-output = ["video-core/audio-output"]
-# AAC-LC via Symphonia (MPL-2.0); see video-core's `native-aac`.
-native-aac = ["video-core/native-aac"]
+audio-output = ["alhazen-core/audio-output"]
+# AAC-LC via Symphonia (MPL-2.0); see alhazen-core's `native-aac`.
+native-aac = ["alhazen-core/native-aac"]
 # The user's own `ffmpeg` program, found at runtime (nothing is linked).
-ffmpeg-cli = ["video-core/ffmpeg-cli"]
+ffmpeg-cli = ["alhazen-core/ffmpeg-cli"]
 # Windows' own (GPU) decoders: H.264, HEVC, VP9, AV1, AAC, MP3, AC-3, E-AC-3, ALAC. No-op elsewhere.
-media-foundation = ["video-core/media-foundation"]
+media-foundation = ["alhazen-core/media-foundation"]
 
 [dependencies]
-video-core.workspace = true
+alhazen-core = { version = "0.2", default-features = false }
 gpui = "0.2.2"
 # Must match the `image` major version gpui uses (RenderImage is built from image::Frame).
 image = { version = "0.25.1", default-features = false }
 
 [dev-dependencies]
 gpui = { version = "0.2.2", features = ["test-support"] }
+
+# Decoders are unusably slow unoptimized, so they are optimized even in debug builds.
+[profile.dev.package.rav1d]
+opt-level = 3
+
+[profile.dev.package.vp9-mt]
+opt-level = 3

@@ -1,4 +1,4 @@
-//! Minimal player: `cargo run -p gpui-video --example play -- <file-or-url>`.
+//! Minimal player: `cargo run --release --example play -- <file-or-url>`.
 //! The controls are plain GPUI divs, meant as a copy-paste starting point.
 
 use std::time::Duration;
@@ -7,7 +7,7 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, relative, rgb, size,
 };
-use gpui_video::{PlayerConfig, PlayerEvent, PlayerState, Source, VideoPlayer, video_view};
+use alhazen_gpui::{PlayerConfig, PlayerEvent, PlayerState, Source, VideoPlayer, video_view};
 
 struct PlayerWindow {
     video: Entity<VideoPlayer>,
@@ -122,7 +122,7 @@ impl Render for PlayerWindow {
 
 fn main() {
     let arg = std::env::args().nth(1).unwrap_or_else(|| {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../video-core/tests/fixtures/av1.webm").to_string()
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/av1.webm").to_string()
     });
     let source = Source::parse(&arg).expect("invalid source");
     Application::new().run(move |cx: &mut App| {

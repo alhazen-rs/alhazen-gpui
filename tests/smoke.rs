@@ -2,11 +2,11 @@
 #![cfg(feature = "native")]
 
 use gpui::{AppContext, TestAppContext};
-use gpui_video::video_core::audio::{AudioOutputConfig, NullOutput};
-use gpui_video::{PlayerConfig, PlayerState, Source, VideoPlayer};
+use alhazen_gpui::alhazen_core::audio::{AudioOutputConfig, NullOutput};
+use alhazen_gpui::{PlayerConfig, PlayerState, Source, VideoPlayer};
 
 fn fixture(name: &str) -> Source {
-    Source::parse(&format!("{}/../video-core/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+    Source::parse(&format!("{}/../alhazen-core/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
 }
 
 #[gpui::test]
@@ -52,7 +52,7 @@ fn missing_file_becomes_error_state(cx: &mut TestAppContext) {
 #[test]
 fn default_build_can_play_sound() {
     assert!(
-        gpui_video::video_core::audio::output_available(),
-        "gpui-video must enable video-core's audio-output feature by default"
+        alhazen_gpui::alhazen_core::audio::output_available(),
+        "alhazen-gpui must enable alhazen-core's audio-output feature by default"
     );
 }

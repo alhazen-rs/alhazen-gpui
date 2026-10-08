@@ -1,7 +1,7 @@
-//! gpui-video's default build carries video-core's default backends (the workspace dependency
-//! turns video-core's defaults off, so each one must be forwarded explicitly).
+//! alhazen-gpui's default build carries alhazen-core's default backends (the workspace dependency
+//! turns alhazen-core's defaults off, so each one must be forwarded explicitly).
 
-use gpui_video::video_core::backend::Registry;
+use alhazen_gpui::alhazen_core::backend::Registry;
 
 #[test]
 fn default_build_includes_ffmpeg_cli() {

@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+env:
+  # No debug info in test builds: keeps the runners' disks from filling up.
+  CARGO_PROFILE_DEV_DEBUG: 0
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # The Linux runner's disk fills up with gpui builds.
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux system packages for gpui
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libvulkan-dev \
+            libssl-dev libasound2-dev pkg-config nasm
+      - run: cargo test --locked
+        timeout-minutes: 40
+      # The default build must not pull in MPL-2.0 Symphonia (that's opt-in `native-aac`). gpui
+      # itself brings option-ext (MPL-2.0), which every gpui app already carries.
+      - name: No Symphonia by default
+        shell: bash
+        run: |
+          tree=$(cargo tree -e normal --prefix none --locked)
+          if grep -qi '^symphonia' <<<"$tree"; then
+            echo "::error::alhazen-gpui pulls MPL-2.0 Symphonia into its default build"
+            exit 1
+          fi
+      - run: cargo clippy --all-targets --locked -- -D warnings
+
+  # A release play.exe for trying the player on Windows without a Rust toolchain. Separate job,
+  # so it doesn't wait for the tests.
+  windows-player:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked --example play
+      - uses: actions/upload-artifact@v4
+        with:
+          name: play-windows
+          path: target/release/examples/play.exe

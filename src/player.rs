@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{App, Context, EventEmitter, RenderImage, Task};
-use video_core::{Player, PlayerConfig, PlayerEvent, PlayerState, Source, VideoFrame};
+use alhazen_core::{Player, PlayerConfig, PlayerEvent, PlayerState, Source, VideoFrame};
 
 /// Paints a replaced frame image stays in the sprite atlas before it is dropped. GPUI's Blade
 /// atlas destroys an image's GPU texture as soon as it is removed, while frames already submitted
@@ -33,7 +33,7 @@ impl<T> Retired<T> {
     }
 }
 
-/// Per-second playback diagnostics, printed to stderr when `VIDEO_CORE_DEBUG` is set.
+/// Per-second playback diagnostics, printed to stderr when `ALHAZEN_DEBUG` is set.
 pub(crate) struct DebugStats {
     since: std::time::Instant,
     new_frames: u32,
@@ -44,7 +44,7 @@ pub(crate) struct DebugStats {
 
 impl DebugStats {
     fn from_env() -> Option<Self> {
-        std::env::var_os("VIDEO_CORE_DEBUG").map(|_| Self {
+        std::env::var_os("ALHAZEN_DEBUG").map(|_| Self {
             since: std::time::Instant::now(),
             new_frames: 0,
             paint_cost: Duration::ZERO,
@@ -210,7 +210,7 @@ impl VideoPlayer {
         self.muted
     }
 
-    /// The underlying `video_core::Player` once opened (`None` while loading or after an open
+    /// The underlying `alhazen_core::Player` once opened (`None` while loading or after an open
     /// error), for anything this entity does not wrap.
     pub fn player(&self) -> Option<&Arc<Player>> {
         self.player.as_ref()
@@ -289,7 +289,7 @@ impl VideoPlayer {
 }
 
 impl VideoPlayer {
-    /// Records the UI-thread cost of painting a new frame (`VIDEO_CORE_DEBUG` only) and prints a
+    /// Records the UI-thread cost of painting a new frame (`ALHAZEN_DEBUG` only) and prints a
     /// summary once a second: frames shown, paint cost, A/V offset, drops and the video backend.
     pub(crate) fn debug_paint(&mut self, new_frame: bool, cost: Duration) {
         let frame_pts = self.image_pts;
@@ -309,7 +309,7 @@ impl VideoPlayer {
         let playing = player.state() == PlayerState::Playing;
         let offset_ms = frame_pts.filter(|_| playing).map(|p| position.as_secs_f64() * 1e3 - p.as_secs_f64() * 1e3);
         eprintln!(
-            "[video-core] pos {:7.2}s | shown {:3} fps | paint avg {:5.1} ms, worst {:5.1} ms | frame behind clock {} | dropped {:3}/s | state {:?} | video {}",
+            "[alhazen] pos {:7.2}s | shown {:3} fps | paint avg {:5.1} ms, worst {:5.1} ms | frame behind clock {} | dropped {:3}/s | state {:?} | video {}",
             position.as_secs_f64(),
             d.new_frames,
             d.paint_cost.as_secs_f64() * 1e3 / d.new_frames.max(1) as f64,

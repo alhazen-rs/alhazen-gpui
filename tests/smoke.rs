@@ -6,7 +6,7 @@ use alhazen_gpui::alhazen_core::audio::{AudioOutputConfig, NullOutput};
 use alhazen_gpui::{PlayerConfig, PlayerState, Source, VideoPlayer};
 
 fn fixture(name: &str) -> Source {
-    Source::parse(&format!("{}/../alhazen-core/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+    Source::parse(&format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
 }
 
 #[gpui::test]

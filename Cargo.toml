@@ -12,7 +12,7 @@ categories = ["multimedia::video", "gui"]
 include = ["src/**", "examples/**", "LICENSE", "NOTICE"]
 
 [features]
-default = ["native", "http", "audio-output", "ffmpeg-cli"]
+default = ["native", "http", "audio-output", "ffmpeg-cli", "media-foundation"]
 native = ["video-core/native"]
 http = ["video-core/http"]
 # Sound through the system's default device (Linux builds need libasound2-dev).
@@ -21,6 +21,8 @@ audio-output = ["video-core/audio-output"]
 native-aac = ["video-core/native-aac"]
 # The user's own `ffmpeg` program, found at runtime (nothing is linked).
 ffmpeg-cli = ["video-core/ffmpeg-cli"]
+# Windows' own (GPU) decoders: H.264, HEVC, VP9, AV1, AAC, MP3, AC-3, E-AC-3, ALAC. No-op elsewhere.
+media-foundation = ["video-core/media-foundation"]
 
 [dependencies]
 video-core.workspace = true

@@ -18,6 +18,8 @@ video_view(video.clone()).size_full()
   ProRes, Opus, Vorbis, FLAC and PCM in pure Rust on every platform.
 - **On Windows:** H.264, HEVC, VP9 and AV1 decode on the GPU, plus AAC, MP3, AC-3 and ALAC,
   through Windows' own decoders.
+- **On Linux with an NVIDIA GPU:** H.264, HEVC, VP8, VP9 and AV1 decode on the GPU (NVDEC), scaled
+  to the size you display them at. Loaded from the driver at runtime: nothing to install.
 - **Everything else** goes through the user's `ffmpeg`, if installed. It's found at runtime,
   never linked.
 - **Local files and HTTP(S) streaming,** with seeking.
@@ -133,6 +135,7 @@ The same as alhazen-core's, forwarded to it:
 | `audio-output` | ✅ | Sound through the default output device. |
 | `ffmpeg-cli` | ✅ | The user's ffmpeg, found at runtime. |
 | `media-foundation` | ✅ | Windows' (GPU) decoders; nothing on other platforms. |
+| `nvdec` | ✅ | NVIDIA GPU decoding on Linux, loaded from the driver at runtime; nothing on other platforms. |
 | `native-aac` | | AAC-LC through Symphonia (MPL-2.0). |
 
 ## Debugging playback
@@ -152,6 +155,8 @@ decoder is in use. For example:
 - **Linux:** GPUI's requirements (Vulkan, `libxkbcommon`, Wayland/X11 headers) and ALSA headers
   for sound (`libasound2-dev`).
 - **Windows 10/11, macOS:** nothing else.
+- **GPU decoding on Linux:** an NVIDIA GPU with its proprietary driver (optional; without it,
+  playback uses the other decoders).
 
 ## License
 

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{App, Context, EventEmitter, RenderImage, Task};
-use alhazen_core::{Player, PlayerConfig, PlayerEvent, PlayerState, Source, VideoFrame};
+use alhazen_core::{Metadata, Player, PlayerConfig, PlayerEvent, PlayerState, Source, VideoFrame};
 
 /// Paints a replaced frame image stays in the sprite atlas before it is dropped. GPUI's Blade
 /// atlas destroys an image's GPU texture as soon as it is removed, while frames already submitted
@@ -74,6 +74,10 @@ pub struct VideoPlayer {
     /// Volume settings, kept here so they apply even before the player has opened.
     volume: f32,
     muted: bool,
+    /// Tags of the open media.
+    metadata: Option<Metadata>,
+    /// The cover art, decoded (BGRA, like video frames) once the media has opened.
+    cover: Option<Arc<RenderImage>>,
     _tasks: Vec<Task<()>>,
 }
 
@@ -85,6 +89,9 @@ impl VideoPlayer {
         cx.on_release(|this: &mut Self, cx: &mut App| {
             if let Some((image, _)) = this.image.take() {
                 cx.drop_image(image, None);
+            }
+            if let Some(cover) = this.cover.take() {
+                cx.drop_image(cover, None);
             }
             for image in this.retired.drain_all() {
                 cx.drop_image(image, None);
@@ -105,6 +112,19 @@ impl VideoPlayer {
                             player.set_volume(this.volume);
                             player.set_muted(this.muted);
                             this.state = player.state();
+                            let metadata = player.metadata();
+                            if let Some(picture) = metadata.as_ref().and_then(|m| m.cover.clone()) {
+                                // Decode off the UI thread; paint once ready.
+                                let task = cx.spawn(async move |this, cx| {
+                                    let cover = cx.background_executor().spawn(async move { crate::cover::decode_cover(&picture.data) }).await;
+                                    let _ = this.update(cx, |this, cx| {
+                                        this.cover = cover;
+                                        cx.notify();
+                                    });
+                                });
+                                this._tasks.push(task);
+                            }
+                            this.metadata = metadata;
                             this.player = Some(Arc::new(player));
                             Some(events)
                         }
@@ -153,6 +173,8 @@ impl VideoPlayer {
             output_size: None,
             volume: 1.0,
             muted: false,
+            metadata: None,
+            cover: None,
             _tasks: vec![open],
         }
     }
@@ -212,6 +234,16 @@ impl VideoPlayer {
 
     /// The underlying `alhazen_core::Player` once opened (`None` while loading or after an open
     /// error), for anything this entity does not wrap.
+    /// Tags of the open media (title, artist, album, …), when it has any.
+    pub fn metadata(&self) -> Option<Metadata> {
+        self.metadata.clone()
+    }
+
+    /// The embedded cover art, decoded. `None` until it is decoded, and when there is none.
+    pub fn cover(&self) -> Option<Arc<RenderImage>> {
+        self.cover.clone()
+    }
+
     pub fn player(&self) -> Option<&Arc<Player>> {
         self.player.as_ref()
     }

@@ -53,9 +53,9 @@ dependencies = [
 
 [[package]]
 name = "alhazen-core"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf479e113d67f8a5848d63906bdce2fa258e543afee92e969e7066ca03b7fa0b"
+checksum = "cf7cb1a3bda5bf21133fc5a294ec8ec976d5f056c440baefa4629f9b4cc810a9"
 dependencies = [
  "claxon",
  "cpal",
@@ -74,6 +74,7 @@ dependencies = [
  "rtrb",
  "rubato",
  "rusty_aac",
+ "rusty_mp3",
  "thiserror 2.0.21",
  "ureq",
  "url",
@@ -84,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "alhazen-gpui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "alhazen-core",
  "gpui",
@@ -5236,6 +5237,12 @@ name = "rusty_aac"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be358888c3ae0cc16d17f50c76b76d8ce903845a97413559cecf38db1ca9c62d"
+
+[[package]]
+name = "rusty_mp3"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bc136ac5835a05cd84a7cb8ec91d2ad8e87f7c9120c5c322fb1a7089ccd54d4"
 
 [[package]]
 name = "rustybuzz"

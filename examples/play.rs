@@ -61,8 +61,14 @@ fn fmt(d: Duration) -> String {
 }
 
 impl Render for PlayerWindow {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let v = self.video.read(cx);
+        let meta = v.metadata().unwrap_or_default();
+        if let Some(title) = &meta.title {
+            let artist = meta.artist.as_deref().map(|a| format!("{a} — ")).unwrap_or_default();
+            window.set_window_title(&format!("{artist}{title}"));
+        }
+        let has_cover = v.cover().is_some();
         let (position, duration, state) = (v.position(), v.duration(), v.state());
         let progress = duration
             .filter(|d| !d.is_zero())
@@ -85,7 +91,23 @@ impl Render for PlayerWindow {
             .bg(rgb(0x101010))
             .text_color(rgb(0xffffff))
             .child(if audio_only {
-                div().flex_1().w_full().flex().items_center().justify_center().child("♪ audio only").into_any_element()
+                let byline = [meta.artist.clone(), meta.album.clone()].into_iter().flatten().collect::<Vec<_>>().join(" — ");
+                div()
+                    .flex_1()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap_2()
+                    .child(if has_cover {
+                        video_view(self.video.clone()).w(px(320.)).h(px(320.)).into_any_element()
+                    } else {
+                        div().text_size(px(64.)).child("♪").into_any_element()
+                    })
+                    .child(div().text_size(px(24.)).child(meta.title.clone().unwrap_or_else(|| "audio only".into())))
+                    .child(div().text_color(rgb(0xaaaaaa)).child(byline))
+                    .into_any_element()
             } else {
                 video_view(self.video.clone()).flex_1().w_full().into_any_element()
             })

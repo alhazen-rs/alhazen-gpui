@@ -97,6 +97,12 @@ impl Element for VideoView {
         if let Some(image) = image {
             let fit = self.object_fit.get_bounds(bounds, image.size(0));
             let _ = window.paint_image(fit, Corners::default(), image, 0, false);
+        } else if !self.player.read(cx).has_video()
+            && let Some(cover) = self.player.read(cx).cover()
+        {
+            // Audio only: the album art where the picture would be.
+            let fit = self.object_fit.get_bounds(bounds, cover.size(0));
+            let _ = window.paint_image(fit, Corners::default(), cover, 0, false);
         }
         let cost = start.elapsed();
         self.player.update(cx, |p, _| p.debug_paint(new_frame, cost));

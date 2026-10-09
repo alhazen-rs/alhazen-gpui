@@ -105,6 +105,7 @@ background; `state()` is `Loading` until then.
 | `seek(Duration)` | `position`, `duration`, `is_seekable` |
 | `set_volume(0.0..=1.0)`, `set_muted(bool)` | `volume`, `is_muted` |
 | | `has_video`, `has_audio`, `video_size` |
+| | `metadata()`: title, artist, album, … of the file; `cover()`: its embedded cover art, decoded |
 | | `player()`: the engine's `Player` (stats, events) once opened |
 
 Events (`cx.subscribe`) are the engine's `PlayerEvent`s: `StateChanged`, `FrameReady`,
@@ -115,7 +116,7 @@ Events (`cx.subscribe`) are the engine's `PlayerEvent`s: `StateChanged`, `FrameR
 Styled like a `div` (`.size_full()`, `.w(px(640.))`, `.rounded_md()`, ...). It letterboxes by
 default; change that with `.object_fit(gpui::ObjectFit::Cover)` (or `Fill`, `ScaleDown`,
 `None`). It tells the engine the size it's drawn at, so large videos are decoded down to that
-size before colour conversion.
+size before colour conversion. For audio-only media it draws the file's cover art, if it has one.
 
 ### Configuration
 
@@ -137,6 +138,7 @@ The same as alhazen-core's, forwarded to it:
 | `media-foundation` | ✅ | Windows' (GPU) decoders; nothing on other platforms. |
 | `nvdec` | ✅ | NVIDIA GPU decoding on Linux, loaded from the driver at runtime; nothing on other platforms. |
 | `native-aac` | ✅ | AAC-LC, HE-AAC and HE-AACv2 in pure Rust (rusty_aac). |
+| `native-mp3` | ✅ | MP3 in pure Rust (rusty_mp3). |
 
 ## Debugging playback
 

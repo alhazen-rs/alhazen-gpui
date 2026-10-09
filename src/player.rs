@@ -283,6 +283,28 @@ impl VideoPlayer {
         self.player.as_ref().and_then(|p| p.video_size())
     }
 
+    /// HLS: the stream's variants (qualities); empty for other media and while loading.
+    #[cfg(feature = "hls")]
+    pub fn variants(&self) -> Vec<alhazen_core::hls::VariantInfo> {
+        self.player.as_ref().map(|p| p.variants()).unwrap_or_default()
+    }
+
+    /// HLS: the variant playing now (an index into `variants()`).
+    #[cfg(feature = "hls")]
+    pub fn current_variant(&self) -> Option<usize> {
+        self.player.as_ref().and_then(|p| p.current_variant())
+    }
+
+    /// HLS: plays this variant from the next segment on; `Variant::Auto` (the default) adapts to
+    /// the connection.
+    #[cfg(feature = "hls")]
+    pub fn set_variant(&mut self, v: alhazen_core::hls::Variant, cx: &mut Context<Self>) {
+        if let Some(p) = &self.player {
+            p.set_variant(v);
+        }
+        cx.notify();
+    }
+
     /// Tells the player how large the video is displayed (device pixels), so 4K frames shown
     /// in a small window are scaled down before conversion and upload.
     pub(crate) fn set_display_size(&mut self, size: (u32, u32)) {

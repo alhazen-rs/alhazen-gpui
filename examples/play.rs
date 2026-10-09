@@ -13,6 +13,8 @@ struct PlayerWindow {
     video: Entity<VideoPlayer>,
     /// Latest warning from the player (e.g. no audio output), shown in the status bar.
     warning: Option<String>,
+    /// The window title last set, so it is set only when it changes.
+    title: Option<String>,
 }
 
 impl PlayerWindow {
@@ -28,7 +30,7 @@ impl PlayerWindow {
             }
         })
         .detach();
-        Self { video, warning: None }
+        Self { video, warning: None, title: None }
     }
 
     fn change_volume(&mut self, delta: f32, cx: &mut Context<Self>) {
@@ -64,9 +66,13 @@ impl Render for PlayerWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let v = self.video.read(cx);
         let meta = v.metadata().unwrap_or_default();
-        if let Some(title) = &meta.title {
+        let title = meta.title.as_ref().map(|t| {
             let artist = meta.artist.as_deref().map(|a| format!("{a} — ")).unwrap_or_default();
-            window.set_window_title(&format!("{artist}{title}"));
+            format!("{artist}{t}")
+        });
+        if title.is_some() && title != self.title {
+            window.set_window_title(title.as_deref().unwrap_or_default());
+            self.title = title;
         }
         let has_cover = v.cover().is_some();
         let (position, duration, state) = (v.position(), v.duration(), v.state());

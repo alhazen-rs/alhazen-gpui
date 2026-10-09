@@ -31,7 +31,7 @@ video_view(video.clone()).size_full()
 ```toml
 [dependencies]
 gpui = "0.2.2"
-alhazen-gpui = "0.2"
+alhazen-gpui = "0.4"
 
 # Decoding unoptimized is many times slower than real time: optimize the decoders even in
 # debug builds.
@@ -136,7 +136,7 @@ The same as alhazen-core's, forwarded to it:
 | `ffmpeg-cli` | ✅ | The user's ffmpeg, found at runtime. |
 | `media-foundation` | ✅ | Windows' (GPU) decoders; nothing on other platforms. |
 | `nvdec` | ✅ | NVIDIA GPU decoding on Linux, loaded from the driver at runtime; nothing on other platforms. |
-| `native-aac` | | AAC-LC through Symphonia (MPL-2.0). |
+| `native-aac` | ✅ | AAC-LC, HE-AAC and HE-AACv2 in pure Rust (rusty_aac). |
 
 ## Debugging playback
 

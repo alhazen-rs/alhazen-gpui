@@ -7,6 +7,7 @@ use gpui::{
     App, Application, Bounds, Context, Entity, SharedString, Window, WindowBounds, WindowOptions,
     div, prelude::*, px, relative, rgb, size,
 };
+use alhazen_gpui::alhazen_core::hls::Variant;
 use alhazen_gpui::{PlayerConfig, PlayerEvent, PlayerState, Source, VideoPlayer, video_view};
 
 struct PlayerWindow {
@@ -15,6 +16,8 @@ struct PlayerWindow {
     warning: Option<String>,
     /// The window title last set, so it is set only when it changes.
     title: Option<String>,
+    /// HLS quality chosen with the Quality button: `None` is automatic.
+    quality: Option<usize>,
 }
 
 impl PlayerWindow {
@@ -22,15 +25,32 @@ impl PlayerWindow {
         let config = PlayerConfig { autoplay: true, ..Default::default() };
         let video = cx.new(|cx| VideoPlayer::new(source, config, cx));
         cx.observe(&video, |_, _, cx| cx.notify()).detach();
-        cx.subscribe(&video, |this, _, event: &PlayerEvent, cx| {
-            if let PlayerEvent::Warning(w) = event {
+        cx.subscribe(&video, |this, _, event: &PlayerEvent, cx| match event {
+            PlayerEvent::Warning(w) => {
                 eprintln!("warning: {w}");
                 this.warning = Some(w.clone());
                 cx.notify();
             }
+            PlayerEvent::VariantChanged(_) => cx.notify(),
+            _ => {}
         })
         .detach();
-        Self { video, warning: None, title: None }
+        Self { video, warning: None, title: None, quality: None }
+    }
+
+    /// HLS: Auto → each variant → Auto.
+    fn next_quality(&mut self, cx: &mut Context<Self>) {
+        let count = self.video.read(cx).variants().len();
+        if count == 0 {
+            return;
+        }
+        self.quality = match self.quality {
+            None => Some(0),
+            Some(i) if i + 1 < count => Some(i + 1),
+            Some(_) => None,
+        };
+        let v = self.quality.map_or(Variant::Auto, Variant::Index);
+        self.video.update(cx, |p, cx| p.set_variant(v, cx));
     }
 
     fn change_volume(&mut self, delta: f32, cx: &mut Context<Self>) {
@@ -89,6 +109,15 @@ impl Render for PlayerWindow {
         let mute_label = if v.is_muted() { "Unmute" } else { "Mute" };
         let volume = format!("Vol {:.0}%", v.volume() * 100.0);
         let audio_only = !v.has_video() && v.has_audio();
+        // HLS: "Auto (640×360)" or the chosen variant's size.
+        let variants = v.variants();
+        let quality = (!variants.is_empty()).then(|| {
+            let size = |i: usize| variants.get(i).and_then(|x| x.resolution).map_or("?".into(), |(w, h)| format!("{w}×{h}"));
+            match self.quality {
+                None => format!("Auto ({})", v.current_variant().map_or("?".into(), size)),
+                Some(i) => size(i),
+            }
+        });
 
         div()
             .size_full()
@@ -137,6 +166,9 @@ impl Render for PlayerWindow {
                     .child(button("vol-down", "Vol -").on_click(cx.listener(|this, _, _, cx| this.change_volume(-0.1, cx))))
                     .child(button("vol-up", "Vol +").on_click(cx.listener(|this, _, _, cx| this.change_volume(0.1, cx))))
                     .child(volume)
+                    .children(quality.map(|q| {
+                        button("quality", q).on_click(cx.listener(|this, _, _, cx| this.next_quality(cx)))
+                    }))
                     .child(format!(
                         "{} / {}",
                         fmt(position),

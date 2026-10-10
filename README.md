@@ -23,6 +23,8 @@ video_view(video.clone()).size_full()
 - **Everything else** goes through the user's `ffmpeg`, if installed. It's found at runtime,
   never linked.
 - **Local files and HTTP(S) streaming,** with seeking.
+- **HLS (`.m3u8`), VOD and live:** adaptive quality with a manual override, audio in a separate
+  playlist, AES-128.
 - **Smooth playback:** audio-driven sync, late-frame dropping, decoding at the size you display,
   and automatic fallback to a faster decoder.
 
@@ -90,7 +92,10 @@ volume and a status line, in plain GPUI divs. It's meant to be copied:
 ```bash
 cargo run --release --example play -- path/to/video.mkv
 cargo run --release --example play -- https://example.com/clip.webm
+cargo run --release --example play -- https://example.com/stream/master.m3u8
 ```
+
+For HLS streams a **Quality** button cycles Auto → each variant → Auto.
 
 ## API
 
@@ -106,10 +111,11 @@ background; `state()` is `Loading` until then.
 | `set_volume(0.0..=1.0)`, `set_muted(bool)` | `volume`, `is_muted` |
 | | `has_video`, `has_audio`, `video_size` |
 | | `metadata()`: title, artist, album, … of the file; `cover()`: its embedded cover art, decoded |
-| | `player()`: the engine's `Player` (stats, events) once opened |
+| `set_variant(Variant)` (HLS) | `variants()`, `current_variant()` |
+| | `player()`: the engine's `Player` (stats, events, audio renditions) once opened |
 
 Events (`cx.subscribe`) are the engine's `PlayerEvent`s: `StateChanged`, `FrameReady`,
-`Warning`, `Error`, `Ended`.
+`Warning`, `Error`, `Ended`, and `VariantChanged` for HLS quality switches.
 
 ### `video_view(player)` (an element)
 
@@ -133,6 +139,7 @@ The same as alhazen-core's, forwarded to it:
 |---|---|---|
 | `native` | ✅ | Pure-Rust decoders and the MP4/MOV demuxer. |
 | `http` | ✅ | HTTP(S) sources. |
+| `hls` | ✅ | HTTP Live Streaming (`.m3u8`). The `play` example needs it. |
 | `audio-output` | ✅ | Sound through the default output device. |
 | `ffmpeg-cli` | ✅ | The user's ffmpeg, found at runtime. |
 | `media-foundation` | ✅ | Windows' (GPU) decoders; nothing on other platforms. |

@@ -14,7 +14,7 @@ categories = ["multimedia::video", "gui"]
 include = ["src/**", "examples/**", "LICENSE", "NOTICE", "README.md"]
 
 [features]
-default = ["native", "http", "hls", "audio-output", "ffmpeg-cli", "media-foundation", "nvdec", "native-aac", "native-mp3"]
+default = ["native", "http", "hls", "audio-output", "ffmpeg-cli", "media-foundation", "videotoolbox", "nvdec", "native-aac", "native-mp3"]
 native = ["alhazen-core/native"]
 http = ["alhazen-core/http"]
 # HTTP Live Streaming (`.m3u8`); see alhazen-core's `hls`.
@@ -29,6 +29,9 @@ native-mp3 = ["alhazen-core/native-mp3"]
 ffmpeg-cli = ["alhazen-core/ffmpeg-cli"]
 # Windows' own (GPU) decoders: H.264, HEVC, VP9, AV1, AAC, MP3, AC-3, E-AC-3, ALAC. No-op elsewhere.
 media-foundation = ["alhazen-core/media-foundation"]
+# macOS: VideoToolbox (H.264, HEVC; AV1, VP9, ProRes where the Mac has hardware) and
+# AudioToolbox (ALAC, AC-3, E-AC-3, xHE-AAC). No-op elsewhere.
+videotoolbox = ["alhazen-core/videotoolbox"]
 # NVIDIA GPU decoding on Linux (NVDEC): H.264, HEVC, VP8, VP9, AV1. Loaded from the driver at
 # runtime; nothing on other platforms.
 nvdec = ["alhazen-core/nvdec"]
@@ -38,6 +41,10 @@ alhazen-core = { version = "0.6", default-features = false }
 gpui = "0.2.2"
 # Must match the `image` major version gpui uses (RenderImage is built from image::Frame).
 image = { version = "0.25.1", default-features = false, features = ["png", "jpeg"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The pixel buffer type GPUI's `paint_surface` takes (same version as gpui's).
+core-video = "0.4.3"
 
 [dev-dependencies]
 gpui = { version = "0.2.2", features = ["test-support"] }
@@ -52,3 +59,7 @@ opt-level = 3
 [[example]]
 name = "play"
 required-features = ["hls"]
+
+# While alhazen-core's frame formats (0.7) are unreleased: build against its branch.
+[patch.crates-io]
+alhazen-core = { git = "https://github.com/alhazen-rs/alhazen-core", branch = "gpu-conversion" }

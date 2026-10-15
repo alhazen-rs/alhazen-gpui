@@ -54,14 +54,6 @@ impl DebugStats {
     }
 }
 
-/// What to paint for the current frame.
-pub(crate) enum Paint {
-    Image(Arc<RenderImage>),
-    /// macOS: a VideoToolbox pixel buffer, drawn with `paint_surface` (no copy).
-    #[cfg(target_os = "macos")]
-    Surface(alhazen_core::apple::NativeFrame),
-}
-
 /// How often player events are forwarded to GPUI.
 const EVENT_POLL: Duration = Duration::from_millis(16);
 
@@ -72,9 +64,6 @@ pub struct VideoPlayer {
     state: PlayerState,
     /// The image currently in GPUI's sprite atlas, and the frame data it was built from.
     image: Option<(Arc<RenderImage>, Arc<[u8]>)>,
-    /// macOS: the current frame when it is a VideoToolbox pixel buffer (instead of `image`).
-    #[cfg(target_os = "macos")]
-    surface: Option<alhazen_core::apple::NativeFrame>,
     /// Pts of the frame shown.
     image_pts: Option<Duration>,
     /// Replaced images still in the atlas until the GPU is surely done with them.
@@ -180,8 +169,6 @@ impl VideoPlayer {
             player: None,
             state: PlayerState::Loading,
             image: None,
-            #[cfg(target_os = "macos")]
-            surface: None,
             image_pts: None,
             retired: Retired::default(),
             debug: DebugStats::from_env(),
@@ -330,11 +317,11 @@ impl VideoPlayer {
         }
     }
 
-    /// What to paint for the current frame, older images the caller must now remove from the
-    /// sprite atlas, and whether the frame is new.
-    pub(crate) fn frame(&mut self) -> (Option<Paint>, Vec<Arc<RenderImage>>, bool) {
+    /// The image to paint for the current frame, older images the caller must now remove from
+    /// the sprite atlas, and whether the frame is new.
+    pub(crate) fn frame_image(&mut self) -> (Option<Arc<RenderImage>>, Vec<Arc<RenderImage>>, bool) {
         let Some(frame) = self.player.as_ref().and_then(|p| p.current_frame()) else {
-            return (self.current_paint(), Vec::new(), false);
+            return (self.current_image(), Vec::new(), false);
         };
         let (width, height, bgra, pts) = match frame {
             VideoFrame::Bgra { width, height, bgra, pts } => (width, height, bgra, pts),
@@ -342,32 +329,24 @@ impl VideoPlayer {
             VideoFrame::Yuv(f) => {
                 let mut bgra = Vec::new();
                 if alhazen_core::convert::frame_to_bgra(&f, &mut bgra).is_err() {
-                    return (self.current_paint(), Vec::new(), false);
+                    return (self.current_image(), Vec::new(), false);
                 }
                 (f.width, f.height, Arc::from(bgra), f.pts)
             }
             #[cfg(target_os = "macos")]
             VideoFrame::Native(n) => {
-                let new = self.image_pts != Some(n.pts) || self.surface.is_none();
-                self.image_pts = Some(n.pts);
-                self.surface = Some(n.clone());
-                // A pixel buffer replaces the atlas image, which retires like any other.
-                let drop = match self.image.take() {
-                    Some((previous, _)) => self.retired.push(previous),
-                    None => Vec::new(),
-                };
-                return (Some(Paint::Surface(n)), drop, new);
+                let mut bgra = Vec::new();
+                if n.to_yuv().and_then(|f| alhazen_core::convert::frame_to_bgra(&f, &mut bgra)).is_err() {
+                    return (self.current_image(), Vec::new(), false);
+                }
+                (n.width, n.height, Arc::from(bgra), n.pts)
             }
         };
-        #[cfg(target_os = "macos")]
-        {
-            self.surface = None;
-        }
-        let current = || self.image.as_ref().map(|(i, _)| Paint::Image(i.clone()));
+        let current = || self.image.as_ref().map(|(i, _)| i.clone());
         if let Some((image, data)) = &self.image
             && Arc::ptr_eq(data, &bgra)
         {
-            return (Some(Paint::Image(image.clone())), Vec::new(), false);
+            return (Some(image.clone()), Vec::new(), false);
         }
         let Some(buffer) = image::RgbaImage::from_raw(width, height, bgra.to_vec()) else {
             return (current(), Vec::new(), false);
@@ -379,15 +358,11 @@ impl VideoPlayer {
             Some((previous, _)) => self.retired.push(previous),
             None => Vec::new(),
         };
-        (Some(Paint::Image(image)), drop, true)
+        (Some(image), drop, true)
     }
 
-    fn current_paint(&self) -> Option<Paint> {
-        #[cfg(target_os = "macos")]
-        if let Some(n) = &self.surface {
-            return Some(Paint::Surface(n.clone()));
-        }
-        self.image.as_ref().map(|(i, _)| Paint::Image(i.clone()))
+    fn current_image(&self) -> Option<Arc<RenderImage>> {
+        self.image.as_ref().map(|(i, _)| i.clone())
     }
 }
 

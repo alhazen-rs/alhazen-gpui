@@ -42,12 +42,6 @@ gpui = "0.2.2"
 # Must match the `image` major version gpui uses (RenderImage is built from image::Frame).
 image = { version = "0.25.1", default-features = false, features = ["png", "jpeg"] }
 
-[target.'cfg(target_os = "macos")'.dependencies]
-# The pixel buffer type GPUI's `paint_surface` takes (same version as gpui's).
-core-video = "0.4.3"
-# `TCFType::wrap_under_get_rule`, to hand GPUI a retained reference (the version core-video uses).
-core-foundation = "0.10"
-
 [dev-dependencies]
 gpui = { version = "0.2.2", features = ["test-support"] }
 

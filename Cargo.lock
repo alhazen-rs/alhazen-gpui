@@ -95,8 +95,6 @@ name = "alhazen-gpui"
 version = "0.6.0"
 dependencies = [
  "alhazen-core",
- "core-foundation 0.10.0",
- "core-video",
  "gpui",
  "image",
 ]

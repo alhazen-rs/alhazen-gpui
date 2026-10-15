@@ -4,7 +4,6 @@ use gpui::{
 };
 
 use crate::VideoPlayer;
-use crate::player::Paint;
 
 /// Renders the current frame of a [`VideoPlayer`]. Style it like a `div` (`.size_full()`, etc.).
 pub fn video_view(player: Entity<VideoPlayer>) -> VideoView {
@@ -87,32 +86,17 @@ impl Element for VideoView {
         let scale = window.scale_factor();
         let device = |px: gpui::Pixels| (f32::from(px) * scale).round().max(1.0) as u32;
         let display = (device(bounds.size.width), device(bounds.size.height));
-        let (paint, retired, new_frame) = self.player.update(cx, |p, _| {
+        let (image, retired, new_frame) = self.player.update(cx, |p, _| {
             p.set_display_size(display);
-            p.frame()
+            p.frame_image()
         });
         for old in retired {
             // Without this the sprite atlas grows by one frame per frame.
             let _ = window.drop_image(old);
         }
-        if let Some(paint) = paint {
-            match paint {
-                Paint::Image(image) => {
-                    let fit = self.object_fit.get_bounds(bounds, image.size(0));
-                    let _ = window.paint_image(fit, Corners::default(), image, 0, false);
-                }
-                #[cfg(target_os = "macos")]
-                Paint::Surface(frame) => {
-                    let size = gpui::size(gpui::DevicePixels(frame.width as i32), gpui::DevicePixels(frame.height as i32));
-                    let fit = self.object_fit.get_bounds(bounds, size);
-                    use core_foundation::base::TCFType;
-                    // SAFETY: a live CVPixelBufferRef, retained here for GPUI (get rule).
-                    let buffer = unsafe {
-                        core_video::pixel_buffer::CVPixelBuffer::wrap_under_get_rule(frame.as_ptr() as core_video::pixel_buffer::CVPixelBufferRef)
-                    };
-                    window.paint_surface(fit, buffer);
-                }
-            }
+        if let Some(image) = image {
+            let fit = self.object_fit.get_bounds(bounds, image.size(0));
+            let _ = window.paint_image(fit, Corners::default(), image, 0, false);
         } else if !self.player.read(cx).has_video()
             && let Some(cover) = self.player.read(cx).cover()
         {

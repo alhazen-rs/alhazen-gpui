@@ -105,6 +105,7 @@ impl Element for VideoView {
                 Paint::Surface(frame) => {
                     let size = gpui::size(gpui::DevicePixels(frame.width as i32), gpui::DevicePixels(frame.height as i32));
                     let fit = self.object_fit.get_bounds(bounds, size);
+                    use core_foundation::base::TCFType;
                     // SAFETY: a live CVPixelBufferRef, retained here for GPUI (get rule).
                     let buffer = unsafe {
                         core_video::pixel_buffer::CVPixelBuffer::wrap_under_get_rule(frame.as_ptr() as core_video::pixel_buffer::CVPixelBufferRef)

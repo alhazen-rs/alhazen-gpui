@@ -64,7 +64,7 @@ pub struct VideoPlayer {
     state: PlayerState,
     /// The image currently in GPUI's sprite atlas, and the frame data it was built from.
     image: Option<(Arc<RenderImage>, Arc<[u8]>)>,
-    /// Pts of the frame in `image`.
+    /// Pts of the frame shown.
     image_pts: Option<Duration>,
     /// Replaced images still in the atlas until the GPU is surely done with them.
     retired: Retired<Arc<RenderImage>>,
@@ -85,7 +85,9 @@ impl EventEmitter<PlayerEvent> for VideoPlayer {}
 
 impl VideoPlayer {
     /// Starts opening `source` on the background executor; state is `Loading` until done.
-    pub fn new(source: Source, config: PlayerConfig, cx: &mut Context<Self>) -> Self {
+    /// `config.frame_formats` is set to [`crate::frame_formats`]: what this widget can draw.
+    pub fn new(source: Source, mut config: PlayerConfig, cx: &mut Context<Self>) -> Self {
+        config.frame_formats = crate::frame_formats();
         cx.on_release(|this: &mut Self, cx: &mut App| {
             if let Some((image, _)) = this.image.take() {
                 cx.drop_image(image, None);
@@ -318,11 +320,29 @@ impl VideoPlayer {
     /// The image to paint for the current frame, older images the caller must now remove from
     /// the sprite atlas, and whether the frame is new.
     pub(crate) fn frame_image(&mut self) -> (Option<Arc<RenderImage>>, Vec<Arc<RenderImage>>, bool) {
-        let current = || self.image.as_ref().map(|(i, _)| i.clone());
         let Some(frame) = self.player.as_ref().and_then(|p| p.current_frame()) else {
-            return (current(), Vec::new(), false);
+            return (self.current_image(), Vec::new(), false);
         };
-        let VideoFrame::Cpu { width, height, bgra, pts } = frame;
+        let (width, height, bgra, pts) = match frame {
+            VideoFrame::Bgra { width, height, bgra, pts } => (width, height, bgra, pts),
+            // Not asked for (see `frame_formats`); converted rather than lost.
+            VideoFrame::Yuv(f) => {
+                let mut bgra = Vec::new();
+                if alhazen_core::convert::frame_to_bgra(&f, &mut bgra).is_err() {
+                    return (self.current_image(), Vec::new(), false);
+                }
+                (f.width, f.height, Arc::from(bgra), f.pts)
+            }
+            #[cfg(target_os = "macos")]
+            VideoFrame::Native(n) => {
+                let mut bgra = Vec::new();
+                if n.to_yuv().and_then(|f| alhazen_core::convert::frame_to_bgra(&f, &mut bgra)).is_err() {
+                    return (self.current_image(), Vec::new(), false);
+                }
+                (n.width, n.height, Arc::from(bgra), n.pts)
+            }
+        };
+        let current = || self.image.as_ref().map(|(i, _)| i.clone());
         if let Some((image, data)) = &self.image
             && Arc::ptr_eq(data, &bgra)
         {
@@ -339,6 +359,10 @@ impl VideoPlayer {
             None => Vec::new(),
         };
         (Some(image), drop, true)
+    }
+
+    fn current_image(&self) -> Option<Arc<RenderImage>> {
+        self.image.as_ref().map(|(i, _)| i.clone())
     }
 }
 
@@ -363,7 +387,7 @@ impl VideoPlayer {
         let playing = player.state() == PlayerState::Playing;
         let offset_ms = frame_pts.filter(|_| playing).map(|p| position.as_secs_f64() * 1e3 - p.as_secs_f64() * 1e3);
         eprintln!(
-            "[alhazen] pos {:7.2}s | shown {:3} fps | paint avg {:5.1} ms, worst {:5.1} ms | frame behind clock {} | dropped {:3}/s | state {:?} | video {}",
+            "[alhazen] pos {:7.2}s | shown {:3} fps | paint avg {:5.1} ms, worst {:5.1} ms | frame behind clock {} | dropped {:3}/s | state {:?} | video {} | conversion {} | {:?}",
             position.as_secs_f64(),
             d.new_frames,
             d.paint_cost.as_secs_f64() * 1e3 / d.new_frames.max(1) as f64,
@@ -372,6 +396,8 @@ impl VideoPlayer {
             stats.frames_dropped - d.dropped_at_start,
             player.state(),
             stats.video_backend.unwrap_or("-"),
+            stats.conversion,
+            stats.hdr,
         );
         *d = DebugStats { since: std::time::Instant::now(), new_frames: 0, paint_cost: Duration::ZERO, worst_paint: Duration::ZERO, dropped_at_start: stats.frames_dropped };
     }

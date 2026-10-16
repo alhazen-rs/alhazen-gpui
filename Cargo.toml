@@ -56,6 +56,6 @@ opt-level = 3
 name = "play"
 required-features = ["hls"]
 
-# While alhazen-core's frame formats (0.7) are unreleased: build against its branch.
+# Until alhazen-core 0.7 (frame formats) is published: build against its master.
 [patch.crates-io]
-alhazen-core = { git = "https://github.com/alhazen-rs/alhazen-core", branch = "gpu-conversion" }
+alhazen-core = { git = "https://github.com/alhazen-rs/alhazen-core", branch = "master" }

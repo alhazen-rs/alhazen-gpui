@@ -33,7 +33,7 @@ video_view(video.clone()).size_full()
 ```toml
 [dependencies]
 gpui = "0.2.2"
-alhazen-gpui = "0.5"
+alhazen-gpui = "0.6"
 
 # Decoding unoptimized is many times slower than real time: optimize the decoders even in
 # debug builds.

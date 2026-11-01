@@ -1,7 +1,7 @@
 [package]
 name = "alhazen-gpui"
 description = "Video player for GPUI apps, built on the alhazen-core media engine"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.92"
@@ -37,7 +37,7 @@ videotoolbox = ["alhazen-core/videotoolbox"]
 nvdec = ["alhazen-core/nvdec"]
 
 [dependencies]
-alhazen-core = { version = "0.6", default-features = false }
+alhazen-core = { version = "0.7", default-features = false }
 gpui = "0.2.2"
 # Must match the `image` major version gpui uses (RenderImage is built from image::Frame).
 image = { version = "0.25.1", default-features = false, features = ["png", "jpeg"] }
@@ -55,7 +55,3 @@ opt-level = 3
 [[example]]
 name = "play"
 required-features = ["hls"]
-
-# Until alhazen-core 0.7 (frame formats) is published: build against its master.
-[patch.crates-io]
-alhazen-core = { git = "https://github.com/alhazen-rs/alhazen-core", branch = "master" }

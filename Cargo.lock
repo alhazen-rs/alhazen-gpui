@@ -53,9 +53,9 @@ dependencies = [
 
 [[package]]
 name = "alhazen-core"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c22b1a62889d66ab6bf29010d1f11ed8e89cd0665e5101e0973c7132912f1cbc"
+checksum = "a2c1a4c3c1dfc677a40962b87ada3d94987cb17fbec97bc2852d893e112dc1e9"
 dependencies = [
  "aes",
  "cbc",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "alhazen-gpui"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "alhazen-core",
  "gpui",
